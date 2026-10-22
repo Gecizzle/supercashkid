@@ -36,7 +36,9 @@ http.createServer(async (req,res)=>{
     if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
     let raw;
     try{raw=await readBody(req,1024*1024);}catch{return reply(res,413,{error:'Too large'},origin);}
-    if(!verifyStripe(raw,req.headers['stripe-signature'],process.env.STRIPE_WEBHOOK_SECRET))return reply(res,400,{error:'Invalid signature'},origin);
+    const liveSignature=verifyStripe(raw,req.headers['stripe-signature'],process.env.STRIPE_WEBHOOK_SECRET);
+    const testSignature=verifyStripe(raw,req.headers['stripe-signature'],process.env.STRIPE_TEST_WEBHOOK_SECRET);
+    if(!liveSignature&&!testSignature)return reply(res,400,{error:'Invalid signature'},origin);
     let event;
     try{event=JSON.parse(raw.toString('utf8'));}catch{return reply(res,400,{error:'Invalid JSON'},origin);}
     if(event.type!=='checkout.session.completed')return reply(res,200,{received:true},origin);
@@ -44,7 +46,8 @@ http.createServer(async (req,res)=>{
     if(session.payment_status!=='paid')return reply(res,200,{received:true,paid:false},origin);
     if(session.mode!=='payment'||session.amount_total!==2999||String(session.currency).toLowerCase()!=='usd')return reply(res,200,{received:true,matchingProduct:false},origin);
     // Configure STRIPE_PAYMENT_LINK_ID to prevent unrelated $29.99 payments triggering delivery.
-    if(!process.env.STRIPE_PAYMENT_LINK_ID||session.payment_link!==process.env.STRIPE_PAYMENT_LINK_ID)return reply(res,200,{received:true,matchingLink:false},origin);
+    const expectedLink=liveSignature?process.env.STRIPE_PAYMENT_LINK_ID:process.env.STRIPE_TEST_PAYMENT_LINK_ID;
+    if(!expectedLink||session.payment_link!==expectedLink)return reply(res,200,{received:true,matchingLink:false},origin);
     if(processed.has(event.id))return reply(res,200,{received:true,duplicate:true},origin);
     const email=session.customer_details?.email||session.customer_email;
     let pdf;
