@@ -13,7 +13,8 @@ document.getElementById("lead-form").addEventListener("submit",async function(e)
   const response=await fetch("https://supercashkid-signup.onrender.com/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:document.getElementById("email").value,marketing:document.getElementById("marketing").checked})});
   const result=await response.json();
   if(!response.ok)throw Error(result.error||"Signup unavailable. Please try again.");
-  status.innerHTML='You’re signed up! <a href="/starter-kit.html" style="color:#66f1b8;font-weight:800;text-decoration:underline">OPEN YOUR FREE STARTER KIT →</a>';
+  status.textContent="Success! Opening your free Starter Kit…";
+  window.location.assign("/starter-kit.html");
   form.reset();
  }catch(error){status.textContent=error.message||"Could not complete signup. Please try again.";}
  finally{button.disabled=false;}
