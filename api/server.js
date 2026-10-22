@@ -104,3 +104,31 @@ http.createServer(async (req,res)=>{
     return reply(res,200,{ok:true,message:'You’re signed up! Your free kit will be available soon.'},origin);
   }catch(err){return reply(res,400,{error:'Could not process signup.'},origin);}
 }).listen(port,'0.0.0.0',()=>console.log('Signup API listening'));
+
+async function runDeliverySmokeTest() {
+  if(process.env.BLUEPRINT_DELIVERY_SMOKE_TEST!=='run-once')return;
+  try {
+    const encrypted=Buffer.from((await readFile(new URL('./blueprint.encrypted.b64',import.meta.url),'utf8')).trim(),'base64');
+    const encryptionKey=Buffer.from(process.env.BLUEPRINT_DECRYPTION_KEY||'','hex');
+    if(encryptionKey.length!==32)throw Error('Invalid decryption key');
+    const decipher=createDecipheriv('aes-256-gcm',encryptionKey,encrypted.subarray(0,12));
+    decipher.setAuthTag(encrypted.subarray(encrypted.length-16));
+    const pdf=Buffer.concat([decipher.update(encrypted.subarray(12,-16)),decipher.final()]);
+    if(pdf.subarray(0,4).toString()!=='%PDF')throw Error('Decrypted data is not a PDF');
+    const sender=process.env.BREVO_SENDER_EMAIL;
+    if(!key||!sender)throw Error('Missing Brevo configuration');
+    const response=await fetch('https://api.brevo.com/v3/smtp/email',{
+      method:'POST',headers:{'api-key':key,'Content-Type':'application/json'},
+      body:JSON.stringify({
+        sender:{email:sender,name:'Super Cash Kid'},
+        to:[{email:'gecizzle@gmail.com'}],
+        subject:'Super Cash Kid — Blueprint Delivery Test',
+        htmlContent:'<p>This is a test of automatic Blueprint PDF delivery. Your PDF is attached.</p>',
+        attachment:[{name:'Super_Cash_Kid_Business_Launch_Blueprint.pdf',content:pdf.toString('base64')}]
+      })
+    });
+    console.log('BLUEPRINT_SMOKE_TEST',response.status,response.ok?'EMAIL_ACCEPTED':'EMAIL_REJECTED');
+    if(!response.ok)console.error('BLUEPRINT_SMOKE_TEST_ERROR',(await response.text()).slice(0,500));
+  }catch(err){console.error('BLUEPRINT_SMOKE_TEST_FAILED',err?.message);}
+}
+runDeliverySmokeTest();
