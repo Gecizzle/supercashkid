@@ -1,5 +1,6 @@
 import http from 'node:http';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual, createDecipheriv } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 const port = Number(process.env.PORT || 10000);
 const key = process.env.BREVO_API_KEY;
@@ -46,7 +47,18 @@ http.createServer(async (req,res)=>{
     if(!process.env.STRIPE_PAYMENT_LINK_ID||session.payment_link!==process.env.STRIPE_PAYMENT_LINK_ID)return reply(res,200,{received:true,matchingLink:false},origin);
     if(processed.has(event.id))return reply(res,200,{received:true,duplicate:true},origin);
     const email=session.customer_details?.email||session.customer_email;
-    const pdf=process.env.BLUEPRINT_PDF_BASE64;
+    let pdf;
+    try {
+      const encrypted=Buffer.from((await readFile(new URL('./blueprint.encrypted.b64',import.meta.url),'utf8')).trim(),'base64');
+      const encryptionKey=Buffer.from(process.env.BLUEPRINT_DECRYPTION_KEY||'','hex');
+      if(encryptionKey.length!==32||encrypted.length<29)throw Error('Missing Blueprint encryption configuration');
+      const nonce=encrypted.subarray(0,12);
+      const tag=encrypted.subarray(encrypted.length-16);
+      const ciphertext=encrypted.subarray(12,encrypted.length-16);
+      const decipher=createDecipheriv('aes-256-gcm',encryptionKey,nonce);
+      decipher.setAuthTag(tag);
+      pdf=Buffer.concat([decipher.update(ciphertext),decipher.final()]).toString('base64');
+    }catch(err){console.error('Blueprint decryption unavailable',err?.message);return reply(res,503,{error:'Delivery unavailable'},origin);}
     const sender=process.env.BREVO_SENDER_EMAIL;
     if(!key||!pdf||!sender||!email){console.error('Blueprint delivery configuration missing');return reply(res,503,{error:'Delivery unavailable'},origin);}
     try{
