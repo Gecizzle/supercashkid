@@ -22,7 +22,15 @@ http.createServer(async (req,res)=>{
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254) return reply(res,400,{error:'Enter a valid email address.'},origin);
     if(!key) return reply(res,503,{error:'Signup is being configured. Please try again later.'},origin);
     const attributes={};
+    const name=String(data.name||'').trim().slice(0,80);
+    if(name) attributes.FIRSTNAME=name;
+    const phone=String(data.phone||'').replace(/[\s().-]/g,'');
+    if(phone && data.smsConsent===true){
+      if(!/^\+[1-9]\d{7,14}$/.test(phone)) return reply(res,400,{error:'For text updates, enter your phone in international format, such as +15035551234.'},origin);
+      attributes.SMS=phone;
+    }
     const payload={email,updateEnabled:true};
+    if(Object.keys(attributes).length)payload.attributes=attributes;
     if(data.marketing===true){payload.listIds=process.env.BREVO_LIST_ID? [Number(process.env.BREVO_LIST_ID)] : undefined;}
     const response=await fetch('https://api.brevo.com/v3/contacts',{method:'POST',headers:{'api-key':key,'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!response.ok){console.error('Brevo contact API failed',response.status);return reply(res,502,{error:'Could not complete signup. Please try again.'},origin);}
