@@ -96,7 +96,17 @@ http.createServer(async (req,res)=>{
     const expiry=accessTickets.get(ticket);
     if(!expiry||expiry<Date.now())return reply(res,401,{error:'Sign in with Google to access the Starter Kit'},origin);
     accessTickets.delete(ticket);
-    return reply(res,200,{ok:true,message:'Authenticated kit access passed. PDF delivery still being connected.'},origin);
+    // Stream the existing public PDF only after a valid single-use Google access ticket.
+    // NOTE: The original static PDF URL remains public until a separate production migration.
+    try{
+      const pdfUrl='https://supercashkid.com/Super_Cash_Kid_FREE_Starter_Kit_SALES_EDITION_REVIEW%20(2).pdf';
+      const upstream=await fetch(pdfUrl,{signal:AbortSignal.timeout(15000)});
+      if(!upstream.ok||!String(upstream.headers.get('content-type')||'').includes('pdf'))return reply(res,502,{error:'Starter Kit PDF temporarily unavailable'},origin);
+      const pdf=Buffer.from(await upstream.arrayBuffer());
+      if(pdf.length<1000||pdf.length>25*1024*1024||pdf.subarray(0,5).toString()!=='%PDF-')return reply(res,502,{error:'Invalid Starter Kit PDF'},origin);
+      res.writeHead(200,{'Content-Type':'application/pdf','Content-Disposition':'inline; filename="Super_Cash_Kid_Starter_Kit.pdf"','Cache-Control':'no-store','Access-Control-Allow-Origin':origin,'Vary':'Origin'});
+      return res.end(pdf);
+    }catch{return reply(res,502,{error:'Starter Kit delivery temporarily unavailable'},origin);}
   }
   if(req.url==='/stripe/webhook'){
     if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
