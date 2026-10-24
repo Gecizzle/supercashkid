@@ -112,6 +112,39 @@ http.createServer(async (req,res)=>{
     const event={id:'retry:'+session.id,type:'checkout.session.completed',data:{object:session}};
     return deliverBlueprint(event,false,true,res,origin);
   }
+  // Staged Google authentication endpoint. Never trust browser-supplied email/name.
+  if(req.url==='/auth/google'){
+    if(!allowed.has(origin))return reply(res,403,{error:'Origin not allowed'},origin);
+    if(req.method==='OPTIONS'){
+      res.writeHead(204,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600','Vary':'Origin'});
+      return res.end();
+    }
+    if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
+    let data;
+    try{data=JSON.parse((await readBody(req,8192)).toString('utf8'));}catch{return reply(res,400,{error:'Invalid request'},origin);}
+    const token=String(data.credential||'');
+    if(token.length<100||token.length>6000)return reply(res,400,{error:'Invalid Google credential'},origin);
+    let claims;
+    try{
+      const response=await fetch('https://oauth2.googleapis.com/tokeninfo?id_token='+encodeURIComponent(token),{signal:AbortSignal.timeout(8000)});
+      if(!response.ok)return reply(res,401,{error:'Google authentication failed'},origin);
+      claims=await response.json();
+    }catch{return reply(res,502,{error:'Google verification temporarily unavailable'},origin);}
+    const clientId='216919840594-n9e7r26hr4vaso8m53sh9ims56ubf694.apps.googleusercontent.com';
+    if(claims.aud!==clientId||!['accounts.google.com','https://accounts.google.com'].includes(claims.iss)||claims.email_verified!== 'true'||!claims.sub||Number(claims.exp)*1000<=Date.now())
+      return reply(res,401,{error:'Google authentication failed'},origin);
+    const email=String(claims.email||'').trim().toLowerCase();
+    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254)return reply(res,401,{error:'Google did not provide a verified email'},origin);
+    if(!key)return reply(res,503,{error:'Signup temporarily unavailable'},origin);
+    const name=String(claims.given_name||claims.name||'').trim().slice(0,80);
+    const payload={email,updateEnabled:true,...(name?{attributes:{FIRSTNAME:name}}:{})};
+    if(data.marketing===true&&process.env.BREVO_LIST_ID)payload.listIds=[Number(process.env.BREVO_LIST_ID)];
+    try{
+      const response=await fetch('https://api.brevo.com/v3/contacts',{method:'POST',headers:{'api-key':key,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
+      if(!response.ok){console.error('Brevo Google signup failed',response.status);return reply(res,502,{error:'Could not complete signup'},origin);}
+    }catch{return reply(res,502,{error:'Could not complete signup'},origin);}
+    return reply(res,200,{ok:true,email,name},origin);
+  }
   if(req.url!=='/subscribe') return reply(res,404,{error:'Not found'},origin);
   if(!allowed.has(origin)) return reply(res,403,{error:'Origin not allowed'},origin);
   if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600'});return res.end();}
