@@ -74,6 +74,11 @@ const deliverBlueprint=async(event,liveSignature,testSignature,res,origin)=>{
 };
 http.createServer(async (req,res)=>{
   const origin = req.headers.origin || '';
+  if(req.method==='OPTIONS' && req.url==='/admin/retry-blueprint'){
+    if(!allowed.has(origin))return reply(res,403,{error:'Origin not allowed'},origin);
+    res.writeHead(204,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Max-Age':'600','Vary':'Origin'});
+    return res.end();
+  }
   if(req.url==='/health') return reply(res,200,{ok:true},origin);
   if(req.url==='/stripe/webhook'){
     if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
