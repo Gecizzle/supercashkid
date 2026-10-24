@@ -138,7 +138,7 @@ http.createServer(async (req,res)=>{
     if(Object.keys(attributes).length)payload.attributes=attributes;
     if(data.marketing===true){payload.listIds=process.env.BREVO_LIST_ID? [Number(process.env.BREVO_LIST_ID)] : undefined;}
     const response=await fetch('https://api.brevo.com/v3/contacts',{method:'POST',headers:{'api-key':key,'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(!response.ok){console.error('Brevo contact API failed',response.status);return reply(res,502,{error:'Could not complete signup. Please try again.'},origin);}
+    if(!response.ok){let brevoCode='unknown';try{const details=await response.json();if(typeof details.code==='string')brevoCode=details.code.slice(0,80);}catch{}console.error('Brevo contact API failed',{status:response.status,code:brevoCode,hasListId:Boolean(process.env.BREVO_LIST_ID)});return reply(res,502,{error:'Could not complete signup. Please try again.'},origin);}
     return reply(res,200,{ok:true,message:'You’re signed up! Your free kit will be available soon.'},origin);
   }catch(err){return reply(res,400,{error:'Could not process signup.'},origin);}
 }).listen(port,'0.0.0.0',()=>console.log('Signup API listening'));
