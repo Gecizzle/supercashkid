@@ -96,17 +96,14 @@ http.createServer(async (req,res)=>{
     const expiry=accessTickets.get(ticket);
     if(!expiry||expiry<Date.now())return reply(res,401,{error:'Sign in with Google to access the Starter Kit'},origin);
     accessTickets.delete(ticket);
-    // Stream the existing public PDF only after a valid single-use Google access ticket.
-    // NOTE: The original static PDF URL remains public until a separate production migration.
+    // Approved ten-page kit is stored only in the backend deployment.
     try{
-      const pdfUrl='https://supercashkid.com/Super_Cash_Kid_FREE_Starter_Kit_SALES_EDITION_REVIEW%20(2).pdf';
-      const upstream=await fetch(pdfUrl,{signal:AbortSignal.timeout(15000)});
-      if(!upstream.ok||!String(upstream.headers.get('content-type')||'').includes('pdf'))return reply(res,502,{error:'Starter Kit PDF temporarily unavailable'},origin);
-      const pdf=Buffer.from(await upstream.arrayBuffer());
-      if(pdf.length<1000||pdf.length>25*1024*1024||pdf.subarray(0,5).toString()!=='%PDF-')return reply(res,502,{error:'Invalid Starter Kit PDF'},origin);
-      res.writeHead(200,{'Content-Type':'application/pdf','Content-Disposition':'inline; filename="Super_Cash_Kid_Starter_Kit.pdf"','Cache-Control':'no-store','Access-Control-Allow-Origin':origin,'Vary':'Origin'});
+      const parts=await Promise.all(Array.from({length:12},(_,i)=>readFile(new URL('./kit_parts/part'+String(i).padStart(2,'0')+'.bin',import.meta.url))));
+      const pdf=Buffer.concat(parts);
+      if(pdf.length<1000||pdf.subarray(0,5).toString()!=='%PDF-')return reply(res,502,{error:'Invalid Starter Kit PDF'},origin);
+      res.writeHead(200,{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="Super_Cash_Kid_10_Page_Starter_Kit.pdf"','Content-Length':pdf.length,'Cache-Control':'no-store','Access-Control-Allow-Origin':origin,'Vary':'Origin'});
       return res.end(pdf);
-    }catch{return reply(res,502,{error:'Starter Kit delivery temporarily unavailable'},origin);}
+    }catch(err){console.error('Kit delivery error',err?.message);return reply(res,502,{error:'Starter Kit delivery temporarily unavailable'},origin);}
   }
   if(req.url==='/stripe/webhook'){
     if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
