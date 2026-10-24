@@ -1,0 +1,34 @@
+name: Generate Starter Kit JPG Artwork
+on:
+  push:
+    paths:
+      - '.github/workflows/generate-kit-artwork.yml'
+      - 'Super_Cash_Kid_FREE_Starter_Kit_SALES_EDITION_REVIEW (2).pdf'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  artwork:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render genuine PDF pages as optimized JPGs
+        run: |
+          python -m pip install --quiet pymupdf pillow
+          python - <<'PY'
+          import fitz,io,os
+          from PIL import Image
+          doc=fitz.open("Super_Cash_Kid_FREE_Starter_Kit_SALES_EDITION_REVIEW (2).pdf")
+          os.makedirs("kit-art",exist_ok=True)
+          for page in [1,2,4,6,8]:
+              if page>len(doc): continue
+              pix=doc[page-1].get_pixmap(matrix=fitz.Matrix(1.6,1.6),alpha=False)
+              img=Image.frombytes("RGB",[pix.width,pix.height],pix.samples)
+              img.save(f"kit-art/page-{page}.jpg",quality=83,optimize=True,progressive=True)
+          PY
+      - name: Commit artwork
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add kit-art/*.jpg
+          git diff --cached --quiet || (git commit -m "Publish real Starter Kit JPG previews" && git push)
