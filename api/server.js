@@ -48,7 +48,7 @@ http.createServer(async (req,res)=>{
     // Configure STRIPE_PAYMENT_LINK_ID to prevent unrelated $29.99 payments triggering delivery.
     const expectedLink=liveSignature?process.env.STRIPE_PAYMENT_LINK_ID:process.env.STRIPE_TEST_PAYMENT_LINK_ID;
     const newBlueprintLink='plink_1UTukDE2tA36niJtdIYxbeHk';
-    const matchesNewLink=liveSignature&&session.amount_total===499&&session.payment_link===newBlueprintLink;
+    const matchesNewLink=session.amount_total===499&&((liveSignature&&session.payment_link===newBlueprintLink)||(testSignature&&session.payment_link==='plink_1UTvNKE3PpUqj1X65KVRfEVy'));
     const matchesLegacyLink=!!expectedLink&&session.amount_total===2999&&session.payment_link===expectedLink;
     if(!matchesNewLink&&!matchesLegacyLink)return reply(res,200,{received:true,matchingLink:false},origin);
     if(processed.has(event.id))return reply(res,200,{received:true,duplicate:true},origin);
