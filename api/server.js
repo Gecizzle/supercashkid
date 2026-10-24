@@ -128,9 +128,9 @@ http.createServer(async (req,res)=>{
     if(name) attributes.FIRSTNAME=name;
     const campaignFields=['utmSource','utmMedium','utmCampaign'].map(k=>String(data[k]||'').slice(0,100).replace(/[^a-zA-Z0-9_-]/g,'')).filter(Boolean);
     if(campaignFields.length)console.log('Super Cash Kid signup attribution:',JSON.stringify({source:campaignFields[0]||'',medium:campaignFields[1]||'',campaign:campaignFields[2]||'',marketingOptIn:data.marketing===true}));
-    const phone=String(data.phone||'').replace(/[\\s().-]/g,'');
+    const phone=String(data.phone||'').replace(/[\s().-]/g,'');
     if(phone && data.smsConsent===true){
-      if(!/^\\\\+[1-9]\\d{7,14}$/.test(phone)) return reply(res,400,{error:'For text updates, enter your phone in international format, such as +15035551234.'},origin);
+      if(!/^\+[1-9]\d{7,14}$/.test(phone)) return reply(res,400,{error:'For text updates, enter your phone in international format, such as +15035551234.'},origin);
       attributes.SMS=phone;
     }
     const payload={email,updateEnabled:true};
