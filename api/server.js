@@ -134,7 +134,7 @@ http.createServer(async (req,res)=>{
     if(claims.aud!==clientId||!['accounts.google.com','https://accounts.google.com'].includes(claims.iss)||!['true',true].includes(claims.email_verified)||!claims.sub||Number(claims.exp)*1000<=Date.now())
       return reply(res,401,{error:'Google authentication failed'},origin);
     const email=String(claims.email||'').trim().toLowerCase();
-    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254)return reply(res,401,{error:'Google did not provide a verified email'},origin);
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return reply(res,401,{error:'Google did not provide a verified email'},origin);
     if(origin==='https://supercashkid-google-test.onrender.com')return reply(res,200,{ok:true,verified:true,email,name:String(claims.given_name||claims.name||'').slice(0,80),testMode:true},origin);
     if(!key)return reply(res,503,{error:'Signup temporarily unavailable'},origin);
     const name=String(claims.given_name||claims.name||'').trim().slice(0,80);
