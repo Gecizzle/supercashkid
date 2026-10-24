@@ -122,10 +122,23 @@ http.createServer(async (req,res)=>{
     const data=JSON.parse(body);
     const email=String(data.email||'').trim().toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254) return reply(res,400,{error:'Enter a valid email address.'},origin);
-    // Contact storage is intentionally disabled. Google identity verification happens
-    // on the frontend; this endpoint only acknowledges the optional signup step.
-    // Do not imply that name, phone, or email was saved or subscribed.
-    return reply(res,200,{ok:true,message:'Google verification complete. You can access your free Starter Kit.'},origin);
+    if(!key) return reply(res,503,{error:'Signup is being configured. Please try again later.'},origin);
+    const attributes={};
+    const name=String(data.name||'').trim().slice(0,80);
+    if(name) attributes.FIRSTNAME=name;
+    const campaignFields=['utmSource','utmMedium','utmCampaign'].map(k=>String(data[k]||'').slice(0,100).replace(/[^a-zA-Z0-9_-]/g,'')).filter(Boolean);
+    if(campaignFields.length)console.log('Super Cash Kid signup attribution:',JSON.stringify({source:campaignFields[0]||'',medium:campaignFields[1]||'',campaign:campaignFields[2]||'',marketingOptIn:data.marketing===true}));
+    const phone=String(data.phone||'').replace(/[\\s().-]/g,'');
+    if(phone && data.smsConsent===true){
+      if(!/^\\\\+[1-9]\\d{7,14}$/.test(phone)) return reply(res,400,{error:'For text updates, enter your phone in international format, such as +15035551234.'},origin);
+      attributes.SMS=phone;
+    }
+    const payload={email,updateEnabled:true};
+    if(Object.keys(attributes).length)payload.attributes=attributes;
+    if(data.marketing===true){payload.listIds=process.env.BREVO_LIST_ID? [Number(process.env.BREVO_LIST_ID)] : undefined;}
+    const response=await fetch('https://api.brevo.com/v3/contacts',{method:'POST',headers:{'api-key':key,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!response.ok){let brevoCode='unknown';try{const details=await response.json();if(typeof details.code==='string')brevoCode=details.code.slice(0,80);}catch{}console.error('Brevo contact API failed',{status:response.status,code:brevoCode,hasListId:Boolean(process.env.BREVO_LIST_ID)});return reply(res,502,{error:'Could not complete signup. Please try again.'},origin);}
+    return reply(res,200,{ok:true,message:'You’re signed up! Your free kit will be available soon.'},origin);
   }catch(err){return reply(res,400,{error:'Could not process signup.'},origin);}
 }).listen(port,'0.0.0.0',()=>console.log('Signup API listening'));
 
