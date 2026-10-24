@@ -160,10 +160,10 @@ http.createServer(async (req,res)=>{
       return reply(res,401,{error:'Google authentication failed'},origin);
     const email=String(claims.email||'').trim().toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return reply(res,401,{error:'Google did not provide a verified email'},origin);
-    if(origin==='https://supercashkid-google-test.onrender.com'){
+    if(allowed.has(origin)){
       const name=String(claims.given_name||claims.name||'').trim().slice(0,80);
       try{
-        const saved=await fetch('https://supercashkid-signup.onrender.com/subscribe',{method:'POST',headers:{'Content-Type':'application/json','Origin':'https://supercashkid.com'},body:JSON.stringify({email,name,marketing:data.marketing===true,phone:'',smsConsent:false,utmSource:'google-auth-test'}),signal:AbortSignal.timeout(12000)});
+        const saved=await fetch('https://supercashkid-signup.onrender.com/subscribe',{method:'POST',headers:{'Content-Type':'application/json','Origin':'https://supercashkid.com'},body:JSON.stringify({email,name,marketing:data.marketing===true,phone:'',smsConsent:false,utmSource:origin==='https://supercashkid-google-test.onrender.com'?'google-auth-test':'google-auth-production'}),signal:AbortSignal.timeout(12000)});
         if(!saved.ok){let upstreamError='unknown';try{const detail=await saved.json();upstreamError=String(detail.error||detail.code||'unknown').slice(0,120).replace(/[\r\n]/g,' ');}catch{}console.error('Brevo signup proxy failed',{status:saved.status,upstreamError,endpoint:'/subscribe'});return reply(res,502,{error:'Verified by Google, but contact saving failed',diagnosticCode:'UPSTREAM_'+saved.status},origin);}
       }catch(err){console.error('Brevo signup proxy unavailable',err?.message);return reply(res,502,{error:'Verified by Google, but contact saving failed'},origin);}
       return reply(res,200,{ok:true,verified:true,email,name,contactSaved:true,ticket:issueTicket()},origin);
