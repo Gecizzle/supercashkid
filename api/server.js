@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const port = Number(process.env.PORT || 10000);
 const key = process.env.BREVO_API_KEY;
-const allowed = new Set(['https://supercashkid.onrender.com','https://supercashkid.com','https://www.supercashkid.com']);
+const allowed = new Set(['https://supercashkid-google-test.onrender.com','https://supercashkid.onrender.com','https://supercashkid.com','https://www.supercashkid.com']);
 const reply = (res,code,obj,origin) => {
   res.writeHead(code,{'Content-Type':'application/json','Cache-Control':'no-store',...(allowed.has(origin)?{'Access-Control-Allow-Origin':origin,'Vary':'Origin'}:{})});
   res.end(JSON.stringify(obj));
@@ -135,6 +135,7 @@ http.createServer(async (req,res)=>{
       return reply(res,401,{error:'Google authentication failed'},origin);
     const email=String(claims.email||'').trim().toLowerCase();
     if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254)return reply(res,401,{error:'Google did not provide a verified email'},origin);
+    if(origin==='https://supercashkid-google-test.onrender.com')return reply(res,200,{ok:true,verified:true,email,name:String(claims.given_name||claims.name||'').slice(0,80),testMode:true},origin);
     if(!key)return reply(res,503,{error:'Signup temporarily unavailable'},origin);
     const name=String(claims.given_name||claims.name||'').trim().slice(0,80);
     const payload={email,updateEnabled:true,...(name?{attributes:{FIRSTNAME:name}}:{})};
