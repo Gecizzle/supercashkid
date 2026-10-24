@@ -13,7 +13,7 @@ async function onGoogle(credentialResponse){
  const response=await fetch('https://supercashkid-google-test-api.onrender.com/auth/google',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential:credentialResponse.credential,marketing:document.getElementById('marketing').checked})});
  const result=await response.json();
  if(!response.ok)throw Error(result.error||'Sign-in failed');
- const gate=await fetch('https://supercashkid-google-test-api.onrender.com/kit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket:result.ticket})});if(!gate.ok)throw Error('Verified, but kit access check failed');status.textContent='Google verified! Protected Starter Kit access check passed. PDF delivery and Brevo integration are next.';
+ const gate=await fetch('https://supercashkid-google-test-api.onrender.com/kit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket:result.ticket})});if(!gate.ok){const error=await gate.json().catch(()=>({}));throw Error(error.error||'Starter Kit delivery failed');}const pdf=await gate.blob();if(pdf.type!=='application/pdf')throw Error('Unexpected Starter Kit format');const url=URL.createObjectURL(pdf);const link=document.createElement('a');link.href=url;link.download='Super_Cash_Kid_Starter_Kit.pdf';link.textContent='Download your free Starter Kit PDF';link.style.cssText='display:block;margin:16px;color:#f7d62d;font-weight:bold';status.replaceChildren(document.createTextNode('Google verified! Your Starter Kit is ready.'),link);
  // Do not redirect to a public PDF until server-side access protection is deployed.
  }catch(err){status.textContent=err.message||'Please try again.';}
 }
