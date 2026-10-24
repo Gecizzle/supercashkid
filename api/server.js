@@ -84,8 +84,12 @@ http.createServer(async (req,res)=>{
   }
   if(req.url==='/health') return reply(res,200,{ok:true},origin);
   if(req.url==='/kit'){
-    if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
     if(!allowed.has(origin))return reply(res,403,{error:'Origin not allowed'},origin);
+    if(req.method==='OPTIONS'){
+      res.writeHead(204,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600','Vary':'Origin'});
+      return res.end();
+    }
+    if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
     let data;
     try{data=JSON.parse((await readBody(req,2048)).toString('utf8'));}catch{return reply(res,400,{error:'Invalid request'},origin);}
     const ticket=String(data.ticket||'');
