@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { createHmac, timingSafeEqual, createDecipheriv } from 'node:crypto';
+import { createHmac, timingSafeEqual, createDecipheriv, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 const port = Number(process.env.PORT || 10000);
@@ -29,6 +29,9 @@ const verifyStripe = (raw,header,secret) => {
   });
 };
 const processed=new Set();
+const accessTickets=new Map();
+const issueTicket=()=>{const ticket=randomBytes(32).toString('hex');accessTickets.set(ticket,Date.now()+5*60*1000);return ticket;};
+
 const deliverBlueprint=async(event,liveSignature,testSignature,res,origin)=>{
     if(event.type!=='checkout.session.completed')return reply(res,200,{received:true},origin);
     const session=event.data?.object||{};
@@ -80,6 +83,17 @@ http.createServer(async (req,res)=>{
     return res.end();
   }
   if(req.url==='/health') return reply(res,200,{ok:true},origin);
+  if(req.url==='/kit'){
+    if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
+    if(!allowed.has(origin))return reply(res,403,{error:'Origin not allowed'},origin);
+    let data;
+    try{data=JSON.parse((await readBody(req,2048)).toString('utf8'));}catch{return reply(res,400,{error:'Invalid request'},origin);}
+    const ticket=String(data.ticket||'');
+    const expiry=accessTickets.get(ticket);
+    if(!expiry||expiry<Date.now())return reply(res,401,{error:'Sign in with Google to access the Starter Kit'},origin);
+    accessTickets.delete(ticket);
+    return reply(res,200,{ok:true,message:'Authenticated kit access passed. PDF delivery still being connected.'},origin);
+  }
   if(req.url==='/stripe/webhook'){
     if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
     let raw;
@@ -135,7 +149,7 @@ http.createServer(async (req,res)=>{
       return reply(res,401,{error:'Google authentication failed'},origin);
     const email=String(claims.email||'').trim().toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return reply(res,401,{error:'Google did not provide a verified email'},origin);
-    if(origin==='https://supercashkid-google-test.onrender.com')return reply(res,200,{ok:true,verified:true,email,name:String(claims.given_name||claims.name||'').slice(0,80),testMode:true},origin);
+    if(origin==='https://supercashkid-google-test.onrender.com')return reply(res,200,{ok:true,verified:true,email,name:String(claims.given_name||claims.name||'').slice(0,80),testMode:true,ticket:issueTicket()},origin);
     if(!key)return reply(res,503,{error:'Signup temporarily unavailable'},origin);
     const name=String(claims.given_name||claims.name||'').trim().slice(0,80);
     const payload={email,updateEnabled:true,...(name?{attributes:{FIRSTNAME:name}}:{})};
@@ -144,7 +158,7 @@ http.createServer(async (req,res)=>{
       const response=await fetch('https://api.brevo.com/v3/contacts',{method:'POST',headers:{'api-key':key,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
       if(!response.ok){console.error('Brevo Google signup failed',response.status);return reply(res,502,{error:'Could not complete signup'},origin);}
     }catch{return reply(res,502,{error:'Could not complete signup'},origin);}
-    return reply(res,200,{ok:true,email,name},origin);
+    return reply(res,200,{ok:true,email,name,ticket:issueTicket()},origin);
   }
   if(req.url!=='/subscribe') return reply(res,404,{error:'Not found'},origin);
   if(!allowed.has(origin)) return reply(res,403,{error:'Origin not allowed'},origin);
