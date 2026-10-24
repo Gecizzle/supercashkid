@@ -89,14 +89,14 @@ http.createServer(async (req,res)=>{
     for await(const chunk of req){body+=chunk;if(body.length>4096)throw Error('Too large');}
     const data=JSON.parse(body);
     const email=String(data.email||'').trim().toLowerCase();
-    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254) return reply(res,400,{error:'Enter a valid email address.'},origin);
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254) return reply(res,400,{error:'Enter a valid email address.'},origin);
     if(!key) return reply(res,503,{error:'Signup is being configured. Please try again later.'},origin);
     const attributes={};
     const name=String(data.name||'').trim().slice(0,80);
     if(name) attributes.FIRSTNAME=name;
-    const phone=String(data.phone||'').replace(/[\\s().-]/g,'');
+    const phone=String(data.phone||'').replace(/[\s().-]/g,'');
     if(phone && data.smsConsent===true){
-      if(!/^\\+[1-9]\\d{7,14}$/.test(phone)) return reply(res,400,{error:'For text updates, enter your phone in international format, such as +15035551234.'},origin);
+      if(!/^\\+[1-9]\d{7,14}$/.test(phone)) return reply(res,400,{error:'For text updates, enter your phone in international format, such as +15035551234.'},origin);
       attributes.SMS=phone;
     }
     const payload={email,updateEnabled:true};
