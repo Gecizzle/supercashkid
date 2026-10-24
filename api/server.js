@@ -131,7 +131,7 @@ http.createServer(async (req,res)=>{
       claims=await response.json();
     }catch{return reply(res,502,{error:'Google verification temporarily unavailable'},origin);}
     const clientId='216919840594-n9e7r26hr4vaso8m53sh9ims56ubf694.apps.googleusercontent.com';
-    if(claims.aud!==clientId||!['accounts.google.com','https://accounts.google.com'].includes(claims.iss)||claims.email_verified!== 'true'||!claims.sub||Number(claims.exp)*1000<=Date.now())
+    if(claims.aud!==clientId||!['accounts.google.com','https://accounts.google.com'].includes(claims.iss)||!['true',true].includes(claims.email_verified)||!claims.sub||Number(claims.exp)*1000<=Date.now())
       return reply(res,401,{error:'Google authentication failed'},origin);
     const email=String(claims.email||'').trim().toLowerCase();
     if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254)return reply(res,401,{error:'Google did not provide a verified email'},origin);
