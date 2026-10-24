@@ -62,4 +62,5 @@ async function onGoogleSignup(credentialResponse){
  }catch(err){status.textContent=err.message||'Signup unavailable. Please try again.';}finally{googleBusy=false;}
 }
 window.addEventListener('load',()=>{if(!window.google?.accounts?.id){document.querySelectorAll('.signup-status').forEach(x=>x.textContent='Google sign-in unavailable. Refresh to try again.');return;}google.accounts.id.initialize({client_id:googleClientId,callback:onGoogleSignup,ux_mode:'popup'});for(const id of ['google-desktop','google-mobile']){google.accounts.id.renderButton(document.getElementById(id),{theme:'outline',size:'large',text:'continue_with',width:290});}});
-</script></body></html>
+</script><!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "a510468e0f1c46c6b8da0021317d2e7a"}'></script><!-- End Cloudflare Web Analytics -->
+</body></html>
