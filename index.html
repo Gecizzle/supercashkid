@@ -57,8 +57,8 @@ async function onGoogleSignup(credentialResponse){
   const gate=await fetch(googleApi+'/kit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket:result.ticket})});
   if(!gate.ok){const e=await gate.json().catch(()=>({}));throw Error(e.error||'Starter Kit delivery failed');}
   const pdf=await gate.blob();if(!pdf.type.includes('pdf'))throw Error('Unexpected Starter Kit file');
-  const url=URL.createObjectURL(pdf);const link=document.createElement('a');link.href=url;link.download='Super_Cash_Kid_10_Page_Starter_Kit.pdf';link.textContent='DOWNLOAD YOUR FREE 10-PAGE STARTER KIT ↓';link.style.cssText='display:block;background:#50f4b7;color:#071c26;padding:13px;border-radius:8px;font-weight:900;text-align:center;margin-top:8px';
-  status.replaceChildren(document.createTextNode('Google verified. Contact saved. Your Starter Kit is ready.'),link);
+  status.textContent='Verified! Opening your free Starter Kit…';
+  window.location.assign('/starter-kit.html');
  }catch(err){status.textContent=err.message||'Signup unavailable. Please try again.';}finally{googleBusy=false;}
 }
 window.addEventListener('load',()=>{if(!window.google?.accounts?.id){document.querySelectorAll('.signup-status').forEach(x=>x.textContent='Google sign-in unavailable. Refresh to try again.');return;}google.accounts.id.initialize({client_id:googleClientId,callback:onGoogleSignup,ux_mode:'popup'});for(const id of ['google-desktop','google-mobile']){google.accounts.id.renderButton(document.getElementById(id),{theme:'outline',size:'large',text:'continue_with',width:290});}});
