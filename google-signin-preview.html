@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Super Cash Kid — Google Signup Preview</title>
+<style>body{margin:0;min-height:100vh;background:radial-gradient(circle at 70% 0,#442078,#090a26 60%);color:#fff;font:16px system-ui;display:grid;place-items:center}.panel{box-sizing:border-box;max-width:450px;margin:24px;padding:32px;border:2px solid #b44aff;border-radius:20px;text-align:center;background:#14132e;box-shadow:0 0 30px #812dd755}h1{font-size:34px;margin:8px 0;color:#f7d62d}p{line-height:1.5}.note{font-size:13px;color:#c9c3dd}.check{display:flex;gap:10px;text-align:left;margin:24px 0;align-items:flex-start}.check input{margin-top:4px}#googleButton{display:flex;justify-content:center;min-height:44px}#status{min-height:2em;margin-top:18px}</style>
+<script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<body><main class="panel"><div>SUPER CASH KID</div><h1>GET YOUR FREE STARTER KIT</h1><p>Sign in securely with your Google account. No manual email addresses.</p>
+<label class="check"><input type="checkbox" id="marketing"><span>Yes, send me helpful tips, resources, and special offers by email. Optional; unsubscribe anytime.</span></label>
+<div id="googleButton"></div><p id="status" role="status"></p><p class="note">Your Google account is used to verify your email. We never receive your Google password.</p></main>
+<script>
+const clientId='216919840594-n9e7r26hr4vaso8m53sh9ims56ubf694.apps.googleusercontent.com';
+async function onGoogle(credentialResponse){
+ const status=document.getElementById('status');status.textContent='Verifying your Google account…';
+ try{
+ const response=await fetch('https://supercashkid-signup.onrender.com/auth/google',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential:credentialResponse.credential,marketing:document.getElementById('marketing').checked})});
+ const result=await response.json();
+ if(!response.ok)throw Error(result.error||'Sign-in failed');
+ status.textContent='Verified! Your free Starter Kit is ready.';
+ // Do not redirect to a public PDF until server-side access protection is deployed.
+ }catch(err){status.textContent=err.message||'Please try again.';}
+}
+window.onload=()=>{if(!window.google){document.getElementById('status').textContent='Google sign-in unavailable. Refresh to try again.';return;}google.accounts.id.initialize({client_id:clientId,callback:onGoogle,ux_mode:'popup'});google.accounts.id.renderButton(document.getElementById('googleButton'),{theme:'outline',size:'large',text:'continue_with',width:290});};
+</script></body></html>
