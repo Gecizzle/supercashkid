@@ -29,18 +29,7 @@ const verifyStripe = (raw,header,secret) => {
   });
 };
 const processed=new Set();
-http.createServer(async (req,res)=>{
-  const origin = req.headers.origin || '';
-  if(req.url==='/health') return reply(res,200,{ok:true},origin);
-  if(req.url==='/stripe/webhook'){
-    if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
-    let raw;
-    try{raw=await readBody(req,1024*1024);}catch{return reply(res,413,{error:'Too large'},origin);}
-    const liveSignature=verifyStripe(raw,req.headers['stripe-signature'],process.env.STRIPE_WEBHOOK_SECRET);
-    const testSignature=verifyStripe(raw,req.headers['stripe-signature'],process.env.STRIPE_TEST_WEBHOOK_SECRET);
-    if(!liveSignature&&!testSignature)return reply(res,400,{error:'Invalid signature'},origin);
-    let event;
-    try{event=JSON.parse(raw.toString('utf8'));}catch{return reply(res,400,{error:'Invalid JSON'},origin);}
+const deliverBlueprint=async(event,liveSignature,testSignature,res,origin)=>{
     if(event.type!=='checkout.session.completed')return reply(res,200,{received:true},origin);
     const session=event.data?.object||{};
     if(session.payment_status!=='paid')return reply(res,200,{received:true,paid:false},origin);
@@ -82,6 +71,41 @@ http.createServer(async (req,res)=>{
       if(processed.size>10000)processed.clear();
       return reply(res,200,{received:true},origin);
     }catch(err){console.error('Blueprint email error',err?.message);return reply(res,502,{error:'Delivery failed'},origin);}
+};
+http.createServer(async (req,res)=>{
+  const origin = req.headers.origin || '';
+  if(req.url==='/health') return reply(res,200,{ok:true},origin);
+  if(req.url==='/stripe/webhook'){
+    if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
+    let raw;
+    try{raw=await readBody(req,1024*1024);}catch{return reply(res,413,{error:'Too large'},origin);}
+    const liveSignature=verifyStripe(raw,req.headers['stripe-signature'],process.env.STRIPE_WEBHOOK_SECRET);
+    const testSignature=verifyStripe(raw,req.headers['stripe-signature'],process.env.STRIPE_TEST_WEBHOOK_SECRET);
+    if(!liveSignature&&!testSignature)return reply(res,400,{error:'Invalid signature'},origin);
+    let event;
+    try{event=JSON.parse(raw.toString('utf8'));}catch{return reply(res,400,{error:'Invalid JSON'},origin);}
+    return deliverBlueprint(event,liveSignature,testSignature,res,origin);
+  }
+  if(req.url==='/admin/retry-blueprint') {
+    if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'},origin);
+    const configured=process.env.BLUEPRINT_RETRY_ADMIN_KEY||'';
+    const supplied=String(req.headers.authorization||'').replace(/^Bearer /i,'');
+    if(configured.length<32||supplied.length!==configured.length||!timingSafeEqual(Buffer.from(configured),Buffer.from(supplied)))return reply(res,401,{error:'Unauthorized'},origin);
+    let data;
+    try{data=JSON.parse((await readBody(req,4096)).toString('utf8'));}catch{return reply(res,400,{error:'Invalid request'},origin);}
+    const id=String(data.sessionId||'');
+    if(!/^cs_test_[A-Za-z0-9_]+$/.test(id))return reply(res,400,{error:'Invalid sandbox session'},origin);
+    const stripeKey=process.env.STRIPE_TEST_SECRET_KEY;
+    if(!stripeKey)return reply(res,503,{error:'Stripe test API key not configured'},origin);
+    let session;
+    try{
+      const response=await fetch('https://api.stripe.com/v1/checkout/sessions/'+encodeURIComponent(id),{headers:{Authorization:'Bearer '+stripeKey}});
+      if(!response.ok){console.error('Retry Stripe verification failed',response.status);return reply(res,502,{error:'Could not verify purchase'},origin);}
+      session=await response.json();
+    }catch(err){console.error('Retry Stripe lookup error',err?.message);return reply(res,502,{error:'Could not verify purchase'},origin);}
+    if(session.livemode!==false||session.payment_status!=='paid'||session.mode!=='payment'||session.amount_total!==499||session.currency!=='usd'||session.payment_link!=='plink_1UTvNKE3PpUqj1X65KVRfEVy')return reply(res,403,{error:'Not an eligible paid sandbox purchase'},origin);
+    const event={id:'retry:'+session.id,type:'checkout.session.completed',data:{object:session}};
+    return deliverBlueprint(event,false,true,res,origin);
   }
   if(req.url!=='/subscribe') return reply(res,404,{error:'Not found'},origin);
   if(!allowed.has(origin)) return reply(res,403,{error:'Origin not allowed'},origin);
