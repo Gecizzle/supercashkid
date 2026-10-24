@@ -44,10 +44,13 @@ http.createServer(async (req,res)=>{
     if(event.type!=='checkout.session.completed')return reply(res,200,{received:true},origin);
     const session=event.data?.object||{};
     if(session.payment_status!=='paid')return reply(res,200,{received:true,paid:false},origin);
-    if(session.mode!=='payment'||session.amount_total!==2999||String(session.currency).toLowerCase()!=='usd')return reply(res,200,{received:true,matchingProduct:false},origin);
+    if(session.mode!=='payment'||![499,2999].includes(session.amount_total)||String(session.currency).toLowerCase()!=='usd')return reply(res,200,{received:true,matchingProduct:false},origin);
     // Configure STRIPE_PAYMENT_LINK_ID to prevent unrelated $29.99 payments triggering delivery.
     const expectedLink=liveSignature?process.env.STRIPE_PAYMENT_LINK_ID:process.env.STRIPE_TEST_PAYMENT_LINK_ID;
-    if(!expectedLink||session.payment_link!==expectedLink)return reply(res,200,{received:true,matchingLink:false},origin);
+    const newBlueprintLink='plink_1UTukDE2tA36niJtdIYxbeHk';
+    const matchesNewLink=liveSignature&&session.amount_total===499&&session.payment_link===newBlueprintLink;
+    const matchesLegacyLink=!!expectedLink&&session.amount_total===2999&&session.payment_link===expectedLink;
+    if(!matchesNewLink&&!matchesLegacyLink)return reply(res,200,{received:true,matchingLink:false},origin);
     if(processed.has(event.id))return reply(res,200,{received:true,duplicate:true},origin);
     const email=session.customer_details?.email||session.customer_email;
     let pdf;
